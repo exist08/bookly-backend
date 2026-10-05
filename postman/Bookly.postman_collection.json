@@ -1,0 +1,887 @@
+{
+  "info": {
+    "_postman_id": "589e0b27-27d1-4b99-9a3b-f296082fa40e",
+    "name": "Bookly API",
+    "description": "Accounts & auth for Bookly (Express + MongoDB + JWT).\n\nRun **Sign up** (or **Sign in**) first: the test scripts store `accessToken`, `refreshToken` and `userId` in collection variables, and every authenticated request uses `{{accessToken}}` as its Bearer token.\n\nSet `baseUrl` (default http://localhost:4000). Sign up uses a random email each run so the folder can be run top to bottom with the Collection Runner.\n\nErrors always look like `{ \"error\": { \"code\", \"message\", \"field\" } }`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000"
+    },
+    {
+      "key": "email",
+      "value": ""
+    },
+    {
+      "key": "password",
+      "value": "bookly123"
+    },
+    {
+      "key": "newPassword",
+      "value": "longreads2026"
+    },
+    {
+      "key": "username",
+      "value": ""
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Sign up",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/signup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "signup"
+              ]
+            },
+            "description": "Creates an email/password account. `profileComplete` is false until a username is set with **Update profile**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Aarav Mehta\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.tokens) {",
+                  "  pm.collectionVariables.set('accessToken', json.tokens.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.tokens.refreshToken);",
+                  "}",
+                  "if (json.user) pm.collectionVariables.set('userId', json.user.id);",
+                  "pm.test('new account has no username yet', () => pm.expect(json.user.profileComplete).to.eql(false));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Fresh email + username each run so the Collection Runner can repeat the flow.",
+                  "const n = Date.now().toString(36);",
+                  "pm.collectionVariables.set('email', `reader.${n}@example.com`);",
+                  "pm.collectionVariables.set('username', `reader.${n}`.slice(0, 24));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign up \u2014 duplicate email (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/signup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "signup"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Someone Else\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 409', () => pm.response.to.have.status(409));",
+                  "pm.test('error on email field', () => pm.expect(pm.response.json().error.field).to.eql('email'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign up \u2014 weak password (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/signup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "signup"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Short Pw\",\n  \"email\": \"short.pw@example.com\",\n  \"password\": \"short\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error on password field', () => pm.expect(pm.response.json().error.field).to.eql('password'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/signin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "signin"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.tokens) {",
+                  "  pm.collectionVariables.set('accessToken', json.tokens.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.tokens.refreshToken);",
+                  "}",
+                  "if (json.user) pm.collectionVariables.set('userId', json.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in \u2014 wrong password (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/signin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "signin"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"not-my-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('invalid_credentials', () => pm.expect(pm.response.json().error.code).to.eql('invalid_credentials'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh tokens",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Rotates the refresh token: the old one stops working. Reusing an old one signs the user out everywhere.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.tokens) {",
+                  "  pm.collectionVariables.set('accessToken', json.tokens.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.tokens.refreshToken);",
+                  "}",
+                  "if (json.user) pm.collectionVariables.set('userId', json.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign out (this device)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/signout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "signout"
+              ]
+            },
+            "description": "Revokes the stored refresh token. The access token stays valid until it expires (15 min), which is why the next request can still call Sign out everywhere.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign out everywhere",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/signout-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "signout-all"
+              ]
+            },
+            "description": "Revokes every refresh token and invalidates all access tokens (the next request with the old access token gets 401). **Sign in again** follows so the rest of the collection keeps working.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in again",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/signin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "signin"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.tokens) {",
+                  "  pm.collectionVariables.set('accessToken', json.tokens.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.tokens.refreshToken);",
+                  "}",
+                  "if (json.user) pm.collectionVariables.set('userId', json.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Google sign-in (disabled)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/google",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "google"
+              ]
+            },
+            "description": "**Not enabled yet.** Returns 404 until Google sign-in is switched on. Once enabled, send the ID token from @react-native-google-signin and expect `{ user, tokens }` (201 for a new account).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idToken\": \"<Google ID token from the app>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));",
+                  "// Returns 404 until Google sign-in is enabled (see src/modules/auth/google.ts)."
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Account",
+      "item": [
+        {
+          "name": "Username available?",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/username-available?username={{username}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "users",
+                "username-available"
+              ],
+              "query": [
+                {
+                  "key": "username",
+                  "value": "{{username}}"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('has available flag', () => pm.expect(pm.response.json()).to.have.property('available'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('returns the user', () => pm.expect(pm.response.json().user.id).to.eql(pm.collectionVariables.get('userId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get me \u2014 no token (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update profile (set username)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me"
+              ]
+            },
+            "description": "Fields are optional: send only what changed. `avatarUri` takes a URL or null.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"displayName\": \"Aarav Mehta\",\n  \"bio\": \"Reading my way through the classics.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('profile complete', () => pm.expect(pm.response.json().user.profileComplete).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "password"
+              ]
+            },
+            "description": "Signs out other devices and returns fresh tokens for this one.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{password}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.tokens) {",
+                  "  pm.collectionVariables.set('accessToken', json.tokens.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.tokens.refreshToken);",
+                  "}",
+                  "if (json.user) pm.collectionVariables.set('userId', json.user.id);",
+                  "",
+                  "// Later requests (e.g. Delete account) use the new password.",
+                  "pm.collectionVariables.set('password', pm.collectionVariables.get('newPassword'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me"
+              ]
+            },
+            "description": "Permanent. Email/password accounts send `password`; Google-only accounts send `{ \"confirm\": \"DELETE\" }`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204', () => pm.response.to.have.status(204));",
+                  "pm.collectionVariables.set('accessToken', ''); pm.collectionVariables.set('refreshToken', '');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
