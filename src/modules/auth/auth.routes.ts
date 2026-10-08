@@ -7,7 +7,7 @@ import { issueTokens, revokeAllSessions, revokeRefreshToken, rotateRefreshToken 
 import { requireAuth, currentUser } from '../../middleware/auth.js';
 import { User, toPublicUser, type UserDoc } from '../../models/User.js';
 import { refreshBody, signInBody, signOutBody, signUpBody } from './auth.schemas.js';
-// import { googleSignIn } from './google.js'; // ← enable with Google sign-in (see google.ts)
+import { googleBody, googleSignIn } from './google.js';
 
 export const authRouter = Router();
 
@@ -105,18 +105,14 @@ authRouter.post('/signout-all', requireAuth, async (req, res) => {
   res.status(204).end();
 });
 
-/*
+/**
  * POST /v1/auth/google  { idToken }
- * ---------------------------------------------------------------------------
- * Disabled until Google Sign-In is set up in the app. To enable:
- *   1. Set GOOGLE_CLIENT_IDS in .env (iOS, Android and web client IDs).
- *   2. Uncomment the implementation in ./google.ts and its import above.
- *   3. Uncomment this route.
- *
- * authRouter.post('/google', credentialLimiter, validateBody(googleBody), async (req, res) => {
- *   const { idToken } = req.body as { idToken: string };
- *   const { user, created } = await googleSignIn(idToken);
- *   const tokens = await issueTokens(user, clientInfo(req));
- *   res.status(created ? 201 : 200).json({ user: toPublicUser(user), tokens });
- * });
+ * Verifies the Google ID token, finds/links/creates the reader, issues Bookly tokens.
+ * 201 for a new account (app sends them to profile setup), 200 otherwise.
  */
+authRouter.post('/google', credentialLimiter, validateBody(googleBody), async (req, res) => {
+  const { idToken } = req.body as { idToken: string };
+  const { user, created } = await googleSignIn(idToken);
+  const tokens = await issueTokens(user, clientInfo(req));
+  res.status(created ? 201 : 200).json({ user: toPublicUser(user), tokens });
+});

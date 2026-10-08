@@ -156,7 +156,7 @@
           ]
         },
         {
-          "name": "Sign up \u2014 duplicate email (409)",
+          "name": "Sign up — duplicate email (409)",
           "request": {
             "method": "POST",
             "header": [
@@ -204,7 +204,7 @@
           ]
         },
         {
-          "name": "Sign up \u2014 weak password (400)",
+          "name": "Sign up — weak password (400)",
           "request": {
             "method": "POST",
             "header": [
@@ -305,7 +305,7 @@
           ]
         },
         {
-          "name": "Sign in \u2014 wrong password (401)",
+          "name": "Sign in — wrong password (401)",
           "request": {
             "method": "POST",
             "header": [
@@ -679,7 +679,7 @@
           ]
         },
         {
-          "name": "Get me \u2014 no token (401)",
+          "name": "Get me — no token (401)",
           "request": {
             "method": "GET",
             "header": [],
@@ -759,6 +759,149 @@
                 "exec": [
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
                   "pm.test('profile complete', () => pm.expect(pm.response.json().user.profileComplete).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload avatar",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/avatar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "avatar"
+              ]
+            },
+            "description": "Body → form-data → key `avatar` (type File) → choose a photo. Needs CLOUDINARY_* in .env (otherwise 503 uploads_not_configured).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "avatar",
+                  "type": "file",
+                  "src": [],
+                  "description": "Pick a JPG/PNG/WebP/HEIC photo (≤ 8 MB)"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('avatar is on Cloudinary', () => pm.expect(pm.response.json().user.avatarUri).to.include('res.cloudinary.com'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove avatar",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/avatar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "avatar"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('avatar cleared', () => pm.expect(pm.response.json().user.avatarUri).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cover upload signature",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/uploads/signature",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "uploads",
+                "signature"
+              ]
+            },
+            "description": "Signed params for uploading a book cover straight to Cloudinary: POST `file` + every entry of `fields` as form-data to `uploadUrl`.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"cover\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('has signed fields', () => { const b = pm.response.json(); pm.expect(b.uploadUrl).to.include('api.cloudinary.com'); pm.expect(b.fields.signature).to.be.a('string'); });"
                 ]
               }
             }

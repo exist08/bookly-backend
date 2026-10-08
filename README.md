@@ -43,6 +43,9 @@ Successful auth calls return `{ user, tokens: { accessToken, refreshToken, expir
 | GET | `/v1/me` | Bearer | – | `{ user }` |
 | PATCH | `/v1/me` | Bearer | `{ displayName?, username?, bio?, avatarUri? }` | Profile setup and Edit profile |
 | POST | `/v1/me/password` | Bearer | `{ currentPassword, newPassword }` | Returns fresh tokens, signs out other devices |
+| POST | `/v1/me/avatar` | Bearer | multipart, field `avatar` (JPG/PNG/WebP/HEIC ≤ 8 MB) | Uploads to Cloudinary (512 px, face crop) → `{ user }` |
+| DELETE | `/v1/me/avatar` | Bearer | – | Removes the photo → `{ user }` |
+| POST | `/v1/uploads/signature` | Bearer | `{ kind: "cover" }` | Signed params for direct-to-Cloudinary cover uploads |
 | DELETE | `/v1/me` | Bearer | `{ password }` or `{ confirm: "DELETE" }` (Google-only accounts) | 204 |
 | GET | `/health` | – | – | |
 
@@ -71,3 +74,13 @@ links an existing email/password account with the same email, and otherwise crea
 
 Password reset by email (needs an email provider), posts, votes and image uploads. `DELETE /v1/me`
 has a TODO for cascading posts once they move to this API.
+
+## Cloudinary (photo uploads)
+
+Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` in `.env`
+(Cloudinary Console → Settings → API Keys). Without them the server still runs; upload endpoints return 503.
+
+- **Avatars** go through the API (`POST /v1/me/avatar`): one image per user at `bookly/avatars/<userId>`,
+  overwritten on each upload, deleted with the account. Served with `f_auto,q_auto`.
+- **Book covers** upload straight from the app with a signature from `POST /v1/uploads/signature`
+  into `bookly/covers/<userId>/`. The API secret never leaves the server.

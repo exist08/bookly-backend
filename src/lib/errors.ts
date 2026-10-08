@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { z } from 'zod';
 import mongoose from 'mongoose';
+import multer from 'multer';
 
 /**
  * Every error leaves the API as
@@ -49,6 +50,16 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.status(400).json({
       error: { code: 'invalid_input', message: first?.message ?? 'Invalid input.', field: first?.path.join('.') || undefined },
     });
+    return;
+  }
+  if (err instanceof multer.MulterError) {
+    const message =
+      err.code === 'LIMIT_FILE_SIZE'
+        ? 'That photo is too large. Use one under 8 MB.'
+        : err.code === 'LIMIT_UNEXPECTED_FILE'
+          ? `Send the photo in the "${err.field}" field.`
+          : 'Couldn’t read that upload.';
+    res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: { code: 'invalid_upload', message, field: err.field } });
     return;
   }
   // Unique index race (two sign-ups with the same email at the same moment).

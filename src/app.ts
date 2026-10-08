@@ -7,6 +7,7 @@ import { errorHandler, notFound } from './lib/errors.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { meRouter } from './modules/me/me.routes.js';
 import { usersRouter } from './modules/users/users.routes.js';
+import { uploadsRouter } from './modules/uploads/uploads.routes.js';
 
 export function createApp() {
   const app = express();
@@ -28,6 +29,7 @@ export function createApp() {
   app.use('/v1/auth', authRouter);
   app.use('/v1/me', meRouter);
   app.use('/v1/users', usersRouter);
+  app.use('/v1/uploads', uploadsRouter);
 
   app.use(notFound);
   app.use(errorHandler);

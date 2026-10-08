@@ -19,6 +19,11 @@ const schema = z.object({
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
   // Google sign-in (enable together with src/modules/auth/google.ts)
   GOOGLE_CLIENT_IDS: z.string().optional(),
+  // Cloudinary (photo uploads). Leave empty to run without uploads — upload endpoints then return 503.
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
+  CLOUDINARY_FOLDER: z.string().default('bookly'),
 });
 
 const parsed = schema.safeParse(process.env);

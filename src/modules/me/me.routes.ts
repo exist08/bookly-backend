@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { ApiError } from '../../lib/errors.js';
+import { deliveryUrl, destroyImage, folders, isOwnCloudinaryUrl, uploadBuffer } from '../../lib/cloudinary.js';
+import { imageUpload } from '../../lib/upload.js';
 import { validateBody } from '../../lib/validate.js';
 import { checkPassword, hashPassword } from '../../lib/passwords.js';
 import { issueTokens, revokeAllSessions } from '../../lib/tokens.js';
@@ -23,8 +25,15 @@ const updateMeBody = z
     displayName: z.string().trim().min(1, 'Add your name.').max(60, 'Keep your name under 60 characters.'),
     username,
     bio: z.string().trim().max(160, 'Keep your bio under 160 characters.'),
-    /** URL of an uploaded image, or null to remove it. Uploads come later (presigned storage URLs). */
-    avatarUri: z.url({ error: 'avatarUri must be a URL.' }).max(2048).nullable(),
+    /**
+     * null removes the photo. To set a new one use POST /v1/me/avatar; a URL is
+     * only accepted if it's already on our Cloudinary account.
+     */
+    avatarUri: z
+      .url({ error: 'avatarUri must be a URL.' })
+      .max(2048)
+      .refine(isOwnCloudinaryUrl, 'Upload the photo with POST /v1/me/avatar.')
+      .nullable(),
   })
   .partial()
   .strict();
@@ -50,8 +59,47 @@ meRouter.patch('/', validateBody(updateMeBody), async (req, res) => {
     user.bio = body.bio;
   }
   if (body.avatarUri !== undefined) {
+    if (body.avatarUri === null && user.avatarUrl && isOwnCloudinaryUrl(user.avatarUrl)) {
+      await destroyImage(avatarPublicId(user));
+    }
     user.avatarUrl = body.avatarUri;
   }
+  await user.save();
+  res.json({ user: toPublicUser(user) });
+});
+
+/** One avatar per user, always at the same public id, so a new upload replaces the old one. */
+const avatarPublicId = (user: UserDoc) => `${folders.avatars}/${user.id}`;
+
+/**
+ * POST /v1/me/avatar  multipart/form-data, field "avatar" (JPG/PNG/WebP/HEIC, ≤ 8 MB)
+ * Uploads to Cloudinary, square-cropped around the face at 512 px, and sets it as the profile photo.
+ */
+meRouter.post('/avatar', imageUpload('avatar'), async (req, res) => {
+  const user = currentUser(req);
+  if (!req.file) {
+    throw ApiError.badRequest('photo_required', 'Choose a photo to upload.', 'avatar');
+  }
+  const [folder, publicId] = [folders.avatars, user.id as string];
+  const result = await uploadBuffer(req.file.buffer, {
+    folder,
+    public_id: publicId,
+    overwrite: true,
+    invalidate: true,
+    transformation: [{ width: 512, height: 512, crop: 'fill', gravity: 'face' }],
+  });
+  user.avatarUrl = deliveryUrl(result.public_id, result.version);
+  await user.save();
+  res.json({ user: toPublicUser(user) });
+});
+
+/** DELETE /v1/me/avatar — removes the profile photo (the app falls back to initials). */
+meRouter.delete('/avatar', async (req, res) => {
+  const user = currentUser(req);
+  if (user.avatarUrl && isOwnCloudinaryUrl(user.avatarUrl)) {
+    await destroyImage(avatarPublicId(user));
+  }
+  user.avatarUrl = null;
   await user.save();
   res.json({ user: toPublicUser(user) });
 });
@@ -109,5 +157,6 @@ meRouter.delete('/', validateBody(deleteMeBody), async (req, res) => {
   // TODO(posts): when posts and votes move to this API, delete the user's posts,
   // their cover images and their votes here too (ideally in a transaction).
   await User.deleteOne({ _id: user._id });
+  await destroyImage(avatarPublicId(user));
   res.status(204).end();
 });
