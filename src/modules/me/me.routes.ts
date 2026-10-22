@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { ApiError } from '../../lib/errors.js';
-import { deliveryUrl, destroyImage, folders, isOwnCloudinaryUrl, uploadBuffer } from '../../lib/cloudinary.js';
+import { deliveryUrl, destroyByPrefix, destroyImage, folders, isOwnCloudinaryUrl, uploadBuffer } from '../../lib/cloudinary.js';
+import { Post } from '../../models/Post.js';
+import { Vote } from '../../models/Vote.js';
 import { imageUpload } from '../../lib/upload.js';
 import { validateBody } from '../../lib/validate.js';
 import { checkPassword, hashPassword } from '../../lib/passwords.js';
@@ -153,10 +155,32 @@ meRouter.delete('/', validateBody(deleteMeBody), async (req, res) => {
     throw ApiError.badRequest('confirmation_required', 'Type DELETE to confirm.', 'confirm');
   }
 
-  await Session.deleteMany({ userId: user._id });
-  // TODO(posts): when posts and votes move to this API, delete the user's posts,
-  // their cover images and their votes here too (ideally in a transaction).
-  await User.deleteOne({ _id: user._id });
-  await destroyImage(avatarPublicId(user));
+  await deleteAccountData(user);
   res.status(204).end();
 });
+
+/**
+ * Removes everything an account owns: its votes (and their effect on other
+ * readers' posts), its posts and the votes on them, sessions, and its images.
+ */
+async function deleteAccountData(user: UserDoc) {
+  // 1. Take this reader's votes back off other people's posts.
+  const votes = (await Vote.find({ userId: user._id }, { postId: 1, value: 1 })) as { postId: unknown; value: number }[];
+  if (votes.length) {
+    await Post.bulkWrite(
+      votes.map(v => ({
+        updateOne: { filter: { _id: v.postId }, update: { $inc: v.value === 1 ? { upvotes: -1 } : { downvotes: -1 } } },
+      })),
+    );
+  }
+  // 2. Their posts, every vote on those posts, their own votes, sessions, the account.
+  const postIds = (await Post.find({ authorId: user._id }, { _id: 1 })).map(p => p._id);
+  await Promise.all([
+    Vote.deleteMany({ $or: [{ userId: user._id }, { postId: { $in: postIds } }] }),
+    Post.deleteMany({ authorId: user._id }),
+    Session.deleteMany({ userId: user._id }),
+  ]);
+  await User.deleteOne({ _id: user._id });
+  // 3. Images: the avatar and every cover under bookly/covers/<userId>/.
+  await Promise.all([destroyImage(avatarPublicId(user)), destroyByPrefix(`${folders.covers}/${user.id}/`)]);
+}

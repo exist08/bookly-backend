@@ -8,6 +8,7 @@ import { authRouter } from './modules/auth/auth.routes.js';
 import { meRouter } from './modules/me/me.routes.js';
 import { usersRouter } from './modules/users/users.routes.js';
 import { uploadsRouter } from './modules/uploads/uploads.routes.js';
+import { feedRouter, postsRouter } from './modules/posts/posts.routes.js';
 
 export function createApp() {
   const app = express();
@@ -30,6 +31,8 @@ export function createApp() {
   app.use('/v1/me', meRouter);
   app.use('/v1/users', usersRouter);
   app.use('/v1/uploads', uploadsRouter);
+  app.use('/v1/feed', feedRouter);
+  app.use('/v1/posts', postsRouter);
 
   app.use(notFound);
   app.use(errorHandler);

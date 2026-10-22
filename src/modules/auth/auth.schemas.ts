@@ -32,3 +32,10 @@ export const refreshBody = z.object({
 export const signOutBody = z.object({
   refreshToken: z.string().min(20).optional(),
 });
+
+export const forgotPasswordBody = z.object({ email });
+
+export const resetPasswordBody = z.object({
+  token: z.string({ error: 'This reset link is invalid.' }).min(20, 'This reset link is invalid.'),
+  password: newPassword,
+});

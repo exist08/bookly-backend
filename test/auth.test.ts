@@ -141,8 +141,10 @@ describe('account creation & auth', () => {
     assert.equal(free.body.available, true);
   });
 
-  test('google route is not enabled yet', async () => {
-    const res = await request(app).post('/v1/auth/google').send({ idToken: 'x' });
-    assert.equal(res.status, 404);
+  test('google sign-in validates the ID token', async () => {
+    const short = await request(app).post('/v1/auth/google').send({ idToken: 'x' });
+    assert.equal(short.status, 400);
+    const bogus = await request(app).post('/v1/auth/google').send({ idToken: 'x'.repeat(200) });
+    assert.ok([401, 503].includes(bogus.status), `got ${bogus.status}`);
   });
 });

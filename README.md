@@ -1,6 +1,6 @@
 # Bookly API
 
-Accounts and authentication for the Bookly app. Node.js + Express 5, MongoDB (Mongoose), JWT.
+Accounts, posts, feed, votes and shelves for the Bookly app and website. Node.js + Express 5, MongoDB (Mongoose), JWT.
 
 ## Run it
 
@@ -38,7 +38,7 @@ Successful auth calls return `{ user, tokens: { accessToken, refreshToken, expir
 | POST | `/v1/auth/refresh` | – | `{ refreshToken }` | Rotates the refresh token |
 | POST | `/v1/auth/signout` | – | `{ refreshToken }` | 204, this device only |
 | POST | `/v1/auth/signout-all` | Bearer | – | 204, every device |
-| POST | `/v1/auth/google` | – | `{ idToken }` | **Disabled** — see below |
+| POST | `/v1/auth/google` | – | `{ idToken }` | Verifies Google's ID token; 201 for a new account |
 | GET | `/v1/users/username-available?username=` | – | – | `{ available }` |
 | GET | `/v1/me` | Bearer | – | `{ user }` |
 | PATCH | `/v1/me` | Bearer | `{ displayName?, username?, bio?, avatarUri? }` | Profile setup and Edit profile |
@@ -47,6 +47,17 @@ Successful auth calls return `{ user, tokens: { accessToken, refreshToken, expir
 | DELETE | `/v1/me/avatar` | Bearer | – | Removes the photo → `{ user }` |
 | POST | `/v1/uploads/signature` | Bearer | `{ kind: "cover" }` | Signed params for direct-to-Cloudinary cover uploads |
 | DELETE | `/v1/me` | Bearer | `{ password }` or `{ confirm: "DELETE" }` (Google-only accounts) | 204 |
+| POST | `/v1/auth/password/forgot` | – | `{ email }` | 202 always; emails a 1-hour reset link to `APP_URL/reset?token=…` |
+| POST | `/v1/auth/password/reset` | – | `{ token, password }` | 204; signs out every device |
+| GET | `/v1/feed?cursor=` | Bearer | – | `{ items: PostView[], nextCursor }`, newest first, 10 per page |
+| POST | `/v1/posts` | Bearer | `{ bookTitle, bookAuthor?, review, coverUri, coverPalette? }` | 201 `PostView`. `coverUri` must come from `/v1/uploads/cover` (or `null`) |
+| GET | `/v1/posts/:id` | Bearer | – | `PostView` |
+| PATCH | `/v1/posts/:id` | Bearer | same as create | Author only; a replaced cover is deleted from Cloudinary |
+| DELETE | `/v1/posts/:id` | Bearer | – | 204; author only; removes its votes and cover |
+| PUT | `/v1/posts/:id/vote` | Bearer | `{ value: 1 \| 0 \| -1 }` | `PostView`; idempotent, 0 clears |
+| GET | `/v1/users/:id` | Bearer | – | `{ user, stats: { books, upvotes } }` |
+| GET | `/v1/users/:id/posts?cursor=` | Bearer | – | A reader's shelf, 30 per page |
+| POST | `/v1/uploads/cover` | Bearer | multipart, field `cover` | 201 `{ url }` (Cloudinary, max 1200 px) |
 | GET | `/health` | – | – | |
 
 Sign-up and sign-in are rate-limited to 20 attempts per IP per 15 minutes. Behind a proxy, set
@@ -84,3 +95,17 @@ Set `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` and `CLOUDINARY_API_SECRET` in
   overwritten on each upload, deleted with the account. Served with `f_auto,q_auto`.
 - **Book covers** upload straight from the app with a signature from `POST /v1/uploads/signature`
   into `bookly/covers/<userId>/`. The API secret never leaves the server.
+
+## Posts, votes and privacy
+
+- `PostView` matches the app's type: the post, its `author` and the viewer's `myVote` (-1/0/1), plus `score`.
+- Vote counts are stored on the post and updated with `$inc` when a vote changes, so feeds stay one query.
+- Other readers' `email` is always `""` in responses; you only see your own.
+- Deleting an account takes its votes back off other posts, deletes its posts (and the votes on them),
+  sessions, avatar and every cover under `bookly/covers/<userId>/`.
+- Paging uses a cursor over `(createdAt, _id)`, so new posts never shift or duplicate pages.
+
+## Password reset email
+
+Set `RESEND_API_KEY` (https://resend.com) and `MAIL_FROM` to send real emails. Without a key the reset
+link is printed to the server log instead. `APP_URL` is the website the link points to.

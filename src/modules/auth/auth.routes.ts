@@ -6,7 +6,11 @@ import { burnPasswordCheck, checkPassword, hashPassword } from '../../lib/passwo
 import { issueTokens, revokeAllSessions, revokeRefreshToken, rotateRefreshToken } from '../../lib/tokens.js';
 import { requireAuth, currentUser } from '../../middleware/auth.js';
 import { User, toPublicUser, type UserDoc } from '../../models/User.js';
-import { refreshBody, signInBody, signOutBody, signUpBody } from './auth.schemas.js';
+import { forgotPasswordBody, refreshBody, resetPasswordBody, signInBody, signOutBody, signUpBody } from './auth.schemas.js';
+import crypto from 'node:crypto';
+import { env } from '../../config/env.js';
+import { sendMail } from '../../lib/mailer.js';
+import { PasswordReset } from '../../models/PasswordReset.js';
 import { googleBody, googleSignIn } from './google.js';
 
 export const authRouter = Router();
@@ -102,6 +106,50 @@ authRouter.post('/signout-all', requireAuth, async (req, res) => {
   user.tokenVersion = (user.tokenVersion ?? 0) + 1;
   await user.save();
   await revokeAllSessions(user._id);
+  res.status(204).end();
+});
+
+const sha256 = (v: string) => crypto.createHash('sha256').update(v).digest('hex');
+const RESET_TTL_MS = 60 * 60 * 1000;
+
+/**
+ * POST /v1/auth/password/forgot  { email } → 202
+ * Emails a one-hour reset link to email/password accounts. Always answers 202,
+ * so the endpoint never reveals which emails have accounts.
+ */
+authRouter.post('/password/forgot', credentialLimiter, validateBody(forgotPasswordBody), async (req, res) => {
+  const { email } = req.body as { email: string };
+  const user = (await User.findOne({ email }).select('+passwordHash')) as UserDoc | null;
+  if (user?.passwordHash) {
+    const token = crypto.randomBytes(32).toString('base64url');
+    await PasswordReset.deleteMany({ userId: user._id });
+    await PasswordReset.create({ userId: user._id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + RESET_TTL_MS) });
+    const link = `${env.APP_URL.replace(/\/+$/, '')}/reset?token=${token}`;
+    await sendMail(
+      user.email,
+      'Reset your Bookly password',
+      `Hi ${user.displayName},\n\nTap the link below to choose a new password. It works for one hour.\n\n${link}\n\nIf you didn’t ask for this, you can ignore this email.`,
+    );
+  }
+  res.status(202).json({ ok: true });
+});
+
+/**
+ * POST /v1/auth/password/reset  { token, password } → 204
+ * Sets the new password and signs out every device.
+ */
+authRouter.post('/password/reset', credentialLimiter, validateBody(resetPasswordBody), async (req, res) => {
+  const { token, password } = req.body as { token: string; password: string };
+  const reset = await PasswordReset.findOne({ tokenHash: sha256(token) });
+  if (!reset || reset.expiresAt.getTime() <= Date.now()) {
+    throw ApiError.badRequest('invalid_reset_token', 'This reset link has expired. Ask for a new one.');
+  }
+  const user = (await User.findById(reset.userId)) as UserDoc | null;
+  if (!user) throw ApiError.badRequest('invalid_reset_token', 'This reset link has expired. Ask for a new one.');
+  user.passwordHash = await hashPassword(password);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+  await user.save();
+  await Promise.all([PasswordReset.deleteMany({ userId: user._id }), revokeAllSessions(user._id)]);
   res.status(204).end();
 });
 

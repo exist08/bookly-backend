@@ -58,3 +58,8 @@ export function toPublicUser(user: UserDoc) {
 }
 
 export type PublicUser = ReturnType<typeof toPublicUser>;
+
+/** Another reader as others see them: no email address. */
+export function toPublicAuthor(user: UserDoc) {
+  return { ...toPublicUser(user), email: '' };
+}

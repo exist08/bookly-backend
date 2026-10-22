@@ -105,3 +105,23 @@ export function signDirectUpload(params: { folder: string; publicId: string }) {
     fields: { ...toSign, api_key: env.CLOUDINARY_API_KEY!, signature },
   };
 }
+
+/**
+ * public_id from one of our delivery URLs, e.g.
+ * https://res.cloudinary.com/<cloud>/image/upload/f_auto,q_auto/v17…/bookly/covers/<user>/<id>?_a=… → bookly/covers/<user>/<id>
+ */
+export function publicIdFromUrl(url: string): string | null {
+  const path = url.split('?')[0] ?? '';
+  const m = path.match(/\/upload\/(?:.*?\/)?v\d+\/(.+?)(?:\.[a-z0-9]+)?$/i);
+  return m?.[1] ?? null;
+}
+
+/** Deletes every image under a folder prefix (used when an account is deleted). Never throws. */
+export async function destroyByPrefix(prefix: string) {
+  if (!isCloudinaryConfigured) return;
+  try {
+    await cloudinary.api.delete_resources_by_prefix(prefix, { resource_type: 'image', invalidate: true });
+  } catch (error) {
+    console.error('[cloudinary] prefix delete failed:', prefix, (error as Error).message);
+  }
+}

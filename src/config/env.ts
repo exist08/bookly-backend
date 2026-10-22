@@ -24,6 +24,11 @@ const schema = z.object({
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
   CLOUDINARY_FOLDER: z.string().default('bookly'),
+  // Public website URL, used in password-reset emails (…/reset?token=…).
+  APP_URL: z.string().default('http://localhost:5173'),
+  // Email (password reset). Without RESEND_API_KEY, emails are printed to the log instead.
+  RESEND_API_KEY: z.string().optional(),
+  MAIL_FROM: z.string().default('Bookly <onboarding@resend.dev>'),
 });
 
 const parsed = schema.safeParse(process.env);
